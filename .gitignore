@@ -3,3 +3,4 @@
 Cargo.lock
 20.mp4
 ffmpeg-4.1
+**/x86_64
