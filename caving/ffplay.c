@@ -53,9 +53,6 @@
 
 #include <assert.h>
 
-const char program_name[] = "ffplay";
-const int program_birth_year = 2003;
-
 #define MAX_QUEUE_SIZE (15 * 1024 * 1024)
 #define MIN_FRAMES 25
 #define EXTERNAL_CLOCK_MIN_FRAMES 2
@@ -3051,8 +3048,12 @@ static void event_loop(VideoState *cur_stream)
     }
 }
 
+void caving_frame(VideoState* is) {
+    event_loop(is);
+}
+
 /* Called from the main */
-void start(const char* filename) {
+VideoState* caving_start(const char* filename) {
     int flags;
     VideoState *is;
 
@@ -3098,7 +3099,7 @@ void start(const char* filename) {
             flags |= SDL_WINDOW_BORDERLESS;
         else
             flags |= SDL_WINDOW_RESIZABLE;
-        window = SDL_CreateWindow(program_name, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, default_width, default_height, flags);
+        window = SDL_CreateWindow("CAVING C", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, default_width, default_height, flags);
         SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
         if (window) {
             renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -3123,7 +3124,5 @@ void start(const char* filename) {
         do_exit(NULL);
     }
 
-    event_loop(is);
-
-    /* never returns */
+    return is;
 }
