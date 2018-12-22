@@ -9,3 +9,9 @@ build = "build.rs"
 cc = "1.0"
 
 [dependencies]
+
+[dependencies.adi]
+version = "0.13.0-pre2"
+default-features = false
+features = ["screen"]
+# path = "../../adi"
