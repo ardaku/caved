@@ -52,7 +52,7 @@ static AVPacket pkt;
 static int video_frame_count = 0;
 static int audio_frame_count = 0;
 
-static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize,
+static void pgm_save(unsigned char *buf, int pitch, int xsize, int ysize,
                      char *filename)
 {
     FILE *f;
@@ -61,7 +61,7 @@ static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize,
     f = fopen(filename,"w");
     fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);
     for (i = 0; i < ysize; i++)
-        fwrite(buf + i * wrap, 1, xsize, f);
+        fwrite(buf + i * pitch, 1, xsize, f);
     fclose(f);
 }
 
@@ -105,15 +105,13 @@ static int decode_packet(
                    cached ? "(cached)" : "",
                    video_frame_count++, frame->coded_picture_number);
 
-            /* copy decoded frame to destination buffer:
-             * this is required since rawvideo expects non aligned data */
-//            av_image_copy(video_dst_data, video_dst_linesize,
-//                          (const uint8_t **)(frame->data), frame->linesize,
-//                          pix_fmt, width, height);
-
             /* write to rawvideo file */
             pgm_save(frame->data[0], frame->linesize[0],
                      frame->width, frame->height, "video.pgm");
+            pgm_save(frame->data[1], frame->linesize[1],
+                     frame->width >> 1, frame->height >> 1, "video2.pgm");
+            pgm_save(frame->data[2], frame->linesize[2],
+                     frame->width >> 1, frame->height >> 1, "video3.pgm");
 
 //            video_write(video_dst_data[0], video_dst_bufsize);
         }
@@ -279,7 +277,6 @@ void caving_decode_new(
         fprintf(stderr, "Could not allocate frame\n");
         exit(1);
     }
-    av_frame_set_colorspace(frame, AVCOL_SPC_RGB);
 
     /* initialize packet, set data to NULL, let the demuxer fill it */
     av_init_packet(&pkt);
