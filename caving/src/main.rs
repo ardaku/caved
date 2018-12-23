@@ -368,7 +368,7 @@ unsafe extern "C" fn video_write(data_y: *mut c_void, data_cb: *mut c_void, data
             let data_cr = data_cr.offset((i >> 1) * (pitch_cr as isize)) as *mut _ as *mut u8;
 
             for j in 0..(GLOBAL.video_width as isize) {
-                let [r, g, b, a] = ColorChannels::Srgb.from(ColorChannels::YCbCr, [*data_y.offset(j), *data_cr.offset(j), *data_cb.offset(j), 255]);
+                let [r, g, b, a] = ColorChannels::Srgb.from(ColorChannels::YuvNtsc, [*data_y.offset(j), *data_cb.offset(j >> 1), *data_cr.offset(j >> 1), 255]);
                 *pixels.offset(i * pitch + j * 4 + 0) = r;
                 *pixels.offset(i * pitch + j * 4 + 1) = g;
                 *pixels.offset(i * pitch + j * 4 + 2) = b;

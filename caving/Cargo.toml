@@ -17,4 +17,4 @@ miniz_oxide = "0.2.0"
 version = "0.13.0-pre2"
 default-features = false
 features = ["screen"]
-# path = "../../adi"
+path = "../../adi"
