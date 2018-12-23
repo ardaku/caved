@@ -52,6 +52,19 @@ static AVPacket pkt;
 static int video_frame_count = 0;
 static int audio_frame_count = 0;
 
+static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize,
+                     char *filename)
+{
+    FILE *f;
+    int i;
+
+    f = fopen(filename,"w");
+    fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);
+    for (i = 0; i < ysize; i++)
+        fwrite(buf + i * wrap, 1, xsize, f);
+    fclose(f);
+}
+
 static int decode_packet(
     int *got_frame,
     int cached,
@@ -94,12 +107,15 @@ static int decode_packet(
 
             /* copy decoded frame to destination buffer:
              * this is required since rawvideo expects non aligned data */
-            av_image_copy(video_dst_data, video_dst_linesize,
-                          (const uint8_t **)(frame->data), frame->linesize,
-                          pix_fmt, width, height);
+//            av_image_copy(video_dst_data, video_dst_linesize,
+//                          (const uint8_t **)(frame->data), frame->linesize,
+//                          pix_fmt, width, height);
 
             /* write to rawvideo file */
-            video_write(video_dst_data[0], video_dst_bufsize);
+            pgm_save(frame->data[0], frame->linesize[0],
+                     frame->width, frame->height, "video.pgm");
+
+//            video_write(video_dst_data[0], video_dst_bufsize);
         }
     } else if (pkt.stream_index == audio_stream_idx) {
         /* decode audio frame */
@@ -189,35 +205,6 @@ static int open_codec_context(int *stream_idx,
     return 0;
 }
 
-/*static int get_format_from_sample_fmt(const char **fmt,
-                                      enum AVSampleFormat sample_fmt)
-{
-    int i;
-    struct sample_fmt_entry {
-        enum AVSampleFormat sample_fmt; const char *fmt_be, *fmt_le;
-    } sample_fmt_entries[] = {
-        { AV_SAMPLE_FMT_U8,  "u8",    "u8"    },
-        { AV_SAMPLE_FMT_S16, "s16be", "s16le" },
-        { AV_SAMPLE_FMT_S32, "s32be", "s32le" },
-        { AV_SAMPLE_FMT_FLT, "f32be", "f32le" },
-        { AV_SAMPLE_FMT_DBL, "f64be", "f64le" },
-    };
-    *fmt = NULL;
-
-    for (i = 0; i < FF_ARRAY_ELEMS(sample_fmt_entries); i++) {
-        struct sample_fmt_entry *entry = &sample_fmt_entries[i];
-        if (sample_fmt == entry->sample_fmt) {
-            *fmt = AV_NE(entry->fmt_be, entry->fmt_le);
-            return 0;
-        }
-    }
-
-    fprintf(stderr,
-            "sample format %s is not supported as output format\n",
-            av_get_sample_fmt_name(sample_fmt));
-    return -1;
-}*/
-
 // Read file input_file, and write raw audio and video.
 void caving_decode_new(
     const char* src_filename,
@@ -306,9 +293,7 @@ bool caving_decode_run(
 ) {
     int got_frame;
 
-    
-
-/*    // read frames from the file
+    // read frames from the file
     if (av_read_frame(fmt_ctx, &pkt) >= 0) {
         AVPacket orig_pkt = pkt;
         do {
@@ -335,5 +320,5 @@ bool caving_decode_run(
         av_free(video_dst_data[0]);
 
         return true;
-    }*/
+    }
 }

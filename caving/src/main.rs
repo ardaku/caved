@@ -247,6 +247,9 @@ enum AVPixelFormat {
 }
 
 extern "C" {
+//    fn caving_decode_video(filename: *const c_char) -> ();
+//    fn caving_decode_audio(filename: *const c_char) -> ();
+
     fn caving_decode_new(
         src_filename: *const c_char,
         video_width: *mut c_int,
@@ -376,7 +379,7 @@ unsafe extern "C" fn audio_write(data: *mut c_void, size: size_t) {
 fn play(filename: &str) -> std::io::Result<()> {
     let c_filename = CString::new(filename.as_bytes())?;
 
-    Ok(unsafe {
+    unsafe {
         caving_decode_new(
             c_filename.as_ptr(),
             &mut GLOBAL.video_width,
@@ -386,7 +389,23 @@ fn play(filename: &str) -> std::io::Result<()> {
             &mut GLOBAL.audio_samplerate,
             &mut GLOBAL.audio_sampleformat,
         )
-    })
+
+
+//        caving_decode_video(c_filename.as_ptr());
+//        caving_decode_audio(c_filename.as_ptr());
+    }
+
+    Ok(())/*unsafe {
+        caving_decode_new(
+            c_filename.as_ptr(),
+            &mut GLOBAL.video_width,
+            &mut GLOBAL.video_height,
+            &mut GLOBAL.pixel_format,
+            &mut GLOBAL.audio_channels,
+            &mut GLOBAL.audio_samplerate,
+            &mut GLOBAL.audio_sampleformat,
+        )
+    })*/
 }
 
 fn mode_load(app: &mut Ctx) {
