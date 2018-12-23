@@ -52,23 +52,42 @@ static AVPacket pkt;
 static int video_frame_count = 0;
 static int audio_frame_count = 0;
 
-static void pgm_save(unsigned char *buf, int pitch, int xsize, int ysize,
-                     char *filename)
-{
-    FILE *f;
+static void pgm_save(
+    unsigned char *buf_y,
+    int pitch_y,
+    unsigned char *buf_cb,
+    int pitch_cb,
+    unsigned char *buf_cr,
+    int pitch_cr,
+//    int xsize,
+//    int ysize,
+    void (*video_write)(void* data_y, void* data_cb, void* data_cr,
+        size_t pitch_y, size_t pitch_cb, size_t pitch_cr)
+) {
+    video_write(buf_y, buf_cb, buf_cr, pitch_y, pitch_cb, pitch_cr);
+/*    for (int i = 0; i < ysize; i++) {
+        unsigned char *data_y = buf_y + (i * pitch_y);
+        unsigned char *data_cb = buf_cb + ((i >> 1) * pitch_cb);
+        unsigned char *data_cr = buf_cr + ((i >> 1) * pitch_cr);
+
+        video_write(buf + (i * pitch), xsize);
+    }*/
+
+/*    FILE *f;
     int i;
 
     f = fopen(filename,"w");
     fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);
     for (i = 0; i < ysize; i++)
         fwrite(buf + i * pitch, 1, xsize, f);
-    fclose(f);
+    fclose(f);*/
 }
 
 static int decode_packet(
     int *got_frame,
     int cached,
-    void (*video_write)(void* data, size_t size),
+    void (*video_write)(void* data_y, void* data_cb, void* data_cr,
+        size_t pitch_y, size_t pitch_cb, size_t pitch_cr),
     void (*audio_write)(void* data, size_t size)
 ) {
     int ret = 0;
@@ -106,12 +125,11 @@ static int decode_packet(
                    video_frame_count++, frame->coded_picture_number);
 
             /* write to rawvideo file */
-            pgm_save(frame->data[0], frame->linesize[0],
-                     frame->width, frame->height, "video.pgm");
-            pgm_save(frame->data[1], frame->linesize[1],
-                     frame->width >> 1, frame->height >> 1, "video2.pgm");
-            pgm_save(frame->data[2], frame->linesize[2],
-                     frame->width >> 1, frame->height >> 1, "video3.pgm");
+            pgm_save(
+                frame->data[0], frame->linesize[0],
+                frame->data[1], frame->linesize[1],
+                frame->data[2], frame->linesize[2], video_write
+                /*frame->width, frame->height, "video.pgm"*/);
 
 //            video_write(video_dst_data[0], video_dst_bufsize);
         }
@@ -285,10 +303,11 @@ void caving_decode_new(
 }
 
 bool caving_decode_run(
-    void (*video_write)(void* data, size_t size),
+    void (*video_write)(void* data_y, void* data_cb, void* data_cr,
+        size_t pitch_y, size_t pitch_cb, size_t pitch_cr),
     void (*audio_write)(void* data, size_t size)
 ) {
-    int got_frame;
+    int got_frame = 0;
 
     // read frames from the file
     if (av_read_frame(fmt_ctx, &pkt) >= 0) {
@@ -301,6 +320,8 @@ bool caving_decode_run(
             pkt.size -= ret;
         } while (pkt.size > 0);
         av_packet_unref(&orig_pkt);
+//        if(got_frame) return false;
+//        else return caving_decode_run(video_write, audio_write);
         return false;
     } else {
         // flush cached frames

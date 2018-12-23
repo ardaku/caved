@@ -11,7 +11,7 @@ use std::ffi::CString;
 use std::fs::File;
 use std::io::Write;
 
-use adi::{hid, screen, App};
+use adi::{hid, screen, App, screen::ColorChannels};
 use barg::*;
 use libc::*;
 // use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
@@ -261,7 +261,14 @@ extern "C" {
     ) -> ();
 
     fn caving_decode_run(
-        video_write: unsafe extern "C" fn(data: *mut c_void, size: size_t),
+        video_write: unsafe extern "C" fn(
+            data_y: *mut c_void,
+            data_cb: *mut c_void,
+            data_cr: *mut c_void,
+            pitch_y: size_t,
+            pitch_cb: size_t,
+            pitch_cr: size_t,
+        ),
         audio_write: unsafe extern "C" fn(data: *mut c_void, size: size_t),
     ) -> bool;
 }
@@ -322,58 +329,70 @@ struct VideoBuffer {
 }
 
 struct Global {
+    set: bool,
+    image: Option<(*mut u8, usize, isize)>,
     video_width: c_int,
     video_height: c_int,
     pixel_format: AVPixelFormat,
     audio_channels: c_int,
     audio_samplerate: c_int,
     audio_sampleformat: AVSampleFormat,
-    video: Option<VideoBuffer>,
-    audio: Option<Vec<u8>>,
+//    video: Option<VideoBuffer>,
+//    audio: Option<Vec<u8>>,
 }
 
 static mut GLOBAL: Global = Global {
+    set: true,
+    image: None,
     video_width: 0,
     video_height: 0,
     pixel_format: AVPixelFormat::None,
     audio_channels: 0,
     audio_samplerate: 0,
     audio_sampleformat: AVSampleFormat::None,
-    video: None,
-    audio: None,
+//    video: None,
+//    audio: None,
 };
 
-unsafe extern "C" fn video_write(data: *mut c_void, size: size_t) {
-    if let Some(ref mut video) = GLOBAL.video {
-/*        let mut file = File::create(format!(".caving/rawz/v-{}", 0)).unwrap();
+unsafe extern "C" fn video_write(data_y: *mut c_void, data_cb: *mut c_void, data_cr: *mut c_void,
+    pitch_y: size_t, pitch_cb: size_t, pitch_cr: size_t,
+) {
+    unsafe { GLOBAL.set = false; }
 
-        file.write_all(
-            compress_to_vec(std::slice::from_raw_parts(data as *mut _, size as usize), 8)
-                .as_slice(),
-        )
-        .unwrap();*/
+    if let Some((pixels, pitch, height)) = GLOBAL.image {
+        let pitch = pitch as isize;
+
+        for i in 0..(GLOBAL.video_height as isize).min(height) {
+            let data_y = data_y.offset(i * (pitch_y as isize)) as *mut _ as *mut u8;
+            let data_cb = data_cb.offset((i >> 1) * (pitch_cb as isize)) as *mut _ as *mut u8;
+            let data_cr = data_cr.offset((i >> 1) * (pitch_cr as isize)) as *mut _ as *mut u8;
+
+            for j in 0..(GLOBAL.video_width as isize) {
+                let [r, g, b, a] = ColorChannels::Srgb.from(ColorChannels::YCbCr, [*data_y.offset(j), *data_cr.offset(j), *data_cb.offset(j), 255]);
+                *pixels.offset(i * pitch + j * 4 + 0) = r;
+                *pixels.offset(i * pitch + j * 4 + 1) = g;
+                *pixels.offset(i * pitch + j * 4 + 2) = b;
+                *pixels.offset(i * pitch + j * 4 + 3) = a;
+            }
+        }
     } else {
-        GLOBAL.video = Some(VideoBuffer {
-            current: vec![],
-            overflow: vec![],
-        });
-        video_write(data, size)
+        panic!("Error on video write!");
     }
 }
 
 unsafe extern "C" fn audio_write(data: *mut c_void, size: size_t) {
-    if let Some(ref mut audio) = GLOBAL.audio {
-/*        let mut file = File::create(format!(".caving/rawz/a-{}", 0)).unwrap();
+/*    if let Some(ref mut audio) = GLOBAL.audio {
+        let mut file = File::create(format!(".caving/rawz/a-{}", 0)).unwrap();
 
         file.write_all(
             compress_to_vec(std::slice::from_raw_parts(data as *mut _, size as usize), 8)
                 .as_slice(),
         )
-        .unwrap();*/
+        .unwrap();
     } else {
         GLOBAL.audio = Some(vec![]);
         audio_write(data, size)
-    }
+    }*/
 }
 
 fn play(filename: &str) -> std::io::Result<()> {
@@ -431,10 +450,22 @@ fn mode_load(app: &mut Ctx) {
 
     // Render
     screen::draw(&mut |pixel_buffer| {
+        unsafe { GLOBAL.set = true; }
+
         let (_w, h) = screen::wh();
         let mut image = Image::new(Size((screen::pitch() / 4) as u16, h));
 
         image.clear_ptr(pixel_buffer);
+
+
+        unsafe { GLOBAL.image = Some((pixel_buffer, screen::pitch(), h as isize)); }
+
+        while unsafe { GLOBAL.set } {
+            if unsafe { caving_decode_run(video_write, audio_write) } {
+                app.mode = mode_stop;
+            }
+        }
+
         image.text_ptr(
             [255, 255, 255, 255], // White
             (5.0, 5.0, 36.0),     // Pos. & Size
@@ -443,10 +474,6 @@ fn mode_load(app: &mut Ctx) {
             pixel_buffer,
         );
     });
-
-    if unsafe { caving_decode_run(video_write, audio_write) } {
-        app.mode = mode_stop;
-    }
 }
 
 // Code that runs every frame.
