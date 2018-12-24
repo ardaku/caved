@@ -120,9 +120,20 @@ static int decode_packet(
                 return -1;
             }
 
-            printf("video_frame%s n:%d coded_n:%d\n",
-                   cached ? "(cached)" : "",
-                   video_frame_count++, frame->coded_picture_number);
+        printf(
+            "Frame %c (%d) pts %d dts %d key_frame %d [coded_picture_number %d, display_picture_number %d]\n",
+            av_get_picture_type_char(frame->pict_type),
+            video_dec_ctx->frame_number,
+            frame->pts,
+            frame->pkt_dts,
+            frame->key_frame,
+            frame->coded_picture_number,
+            frame->display_picture_number
+        );
+
+//            printf("video_frame%s n:%d coded_n:%d\n",
+//                   cached ? "(cached)" : "",
+//                   video_frame_count++, frame->coded_picture_number);
 
             /* write to rawvideo file */
             pgm_save(
@@ -169,7 +180,7 @@ static int decode_packet(
 }
 
 static int open_codec_context(int *stream_idx,
-                              AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
+                              AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type, AVRational* fps)
 {
     int ret, stream_index;
     AVStream *st;
@@ -216,6 +227,10 @@ static int open_codec_context(int *stream_idx,
             return ret;
         }
         *stream_idx = stream_index;
+
+        if (type == AVMEDIA_TYPE_VIDEO) {
+            *fps = st->avg_frame_rate;
+        }
     }
 
     return 0;
@@ -229,7 +244,8 @@ void caving_decode_new(
     enum AVPixelFormat* pixel_format,
     int* audio_channels,
     int* audio_samplerate,
-    enum AVSampleFormat* audio_sampleformat
+    enum AVSampleFormat* audio_sampleformat,
+    AVRational* video_fps
 ) {
     // open input file, and allocate format context
     if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0) {
@@ -244,7 +260,7 @@ void caving_decode_new(
     }
 
     // Open video stream, if it exists.
-    if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {
+    if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO, video_fps) >= 0) {
         // Set parameters
         *video_width = video_dec_ctx->width;
         *video_height = video_dec_ctx->height;
@@ -266,7 +282,7 @@ void caving_decode_new(
     }
 
     // Open audio stream, if it exists.
-    if (open_codec_context(&audio_stream_idx, &audio_dec_ctx, fmt_ctx, AVMEDIA_TYPE_AUDIO) >= 0) {
+    if (open_codec_context(&audio_stream_idx, &audio_dec_ctx, fmt_ctx, AVMEDIA_TYPE_AUDIO, video_fps) >= 0) {
         // Set parameters
         *audio_channels = audio_dec_ctx->channels;
         *audio_samplerate = audio_dec_ctx->sample_rate;

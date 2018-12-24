@@ -36,7 +36,7 @@ main!(
         // Texture that holds a frame.
         texture: Texture,
         // Viewer for frame
-//        viewer: Viewer,
+        viewer: Viewer,
     }
 );
 
@@ -55,6 +55,7 @@ impl App for Ctx {
             println!("CAVING > audio_channels: {}", GLOBAL.audio_channels);
             println!("CAVING > audio_samplerate: {}", GLOBAL.audio_samplerate);
             println!("CAVING > audio_sampleformat: {}", GLOBAL.audio_sampleformat);
+            println!("CAVING > video_spf: {}/{}", GLOBAL.video_spf.num, GLOBAL.video_spf.den);
         }
 
         let texture = screen::texture(unsafe {
@@ -66,37 +67,37 @@ impl App for Ctx {
 	        (1.0, 1.0),
 	        (1.0, 0.0),
 
-	        (0.0, 0.0),
-	        (0.0, 1.0),
-	        (1.0, 1.0),
-	        (1.0, 0.0),
+//	        (0.0, 0.0),
+//	        (0.0, 1.0),
+//	        (1.0, 1.0),
+//	        (1.0, 0.0),
         ]);
 
         let model = ModelBuilder::new()
             .vert(&[
-	            prelude::Move(-0.5, -0.5, 1.0),
-	            prelude::Line(0.5, -0.5, 1.0),
-	            prelude::Line(0.5, 0.5, 1.0),
-	            prelude::Line(-0.5, 0.5, 1.0),
+	            prelude::Move(-1.0, -1.0, 1.0),
+	            prelude::Line(-1.0, 1.0, 1.0),
+	            prelude::Line(1.0, 1.0, 1.0),
+	            prelude::Line(1.0, -1.0, 1.0),
             ])
-            .dface(matrix!())
+            .face(matrix!())
             .close();
 
         let viewer = Viewer::new(vector!(), vector!());
         let _a = viewer.add_textured(&model, matrix!(), &texture, tc, false);
 
-        ::std::mem::forget(model);
-        ::std::mem::forget(tc);
-        ::std::mem::forget(viewer);
+//        ::std::mem::forget(model);
+//        ::std::mem::forget(tc);
+//        ::std::mem::forget(viewer);
 
         Ctx {
             time: 0.0,
             frames: 0,
             font: FontChain::default(),
             info: "".to_string(),
-            mode: mode_load,
+            mode: mode_play,
             texture,
-//            viewer,
+            viewer,
         }
     }
 
@@ -300,6 +301,7 @@ extern "C" {
         audio_channels: *mut c_int,
         audio_samplerate: *mut c_int,
         audio_sampleformat: *mut AVSampleFormat,
+        video_spf: *mut AVRational,
     ) -> ();
 
     fn caving_decode_run(
@@ -322,6 +324,13 @@ fn load_file_from_arg() -> String {
 
     println!("usage: caving [filename]");
     ::std::process::exit(1);
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct AVRational {
+    den: i32, // Numerator
+    num: i32, // Denominator
 }
 
 #[repr(C)]
@@ -371,6 +380,7 @@ struct VideoBuffer {
 }
 
 struct Global {
+    video_spf: AVRational,
     set: bool,
     image: Option<VFrame>,
     video_width: c_int,
@@ -384,6 +394,7 @@ struct Global {
 }
 
 static mut GLOBAL: Global = Global {
+    video_spf: AVRational { num: 0, den: 0 },
     set: true,
     image: None,
     video_width: 0,
@@ -449,6 +460,7 @@ fn play(filename: &str) -> std::io::Result<()> {
             &mut GLOBAL.audio_channels,
             &mut GLOBAL.audio_samplerate,
             &mut GLOBAL.audio_sampleformat,
+            &mut GLOBAL.video_spf,
         );
 
         GLOBAL.image = Some(VFrame(vec![255; GLOBAL.video_width as usize * GLOBAL.video_height as usize * 4]));
@@ -470,7 +482,7 @@ fn play(filename: &str) -> std::io::Result<()> {
     })*/
 }
 
-fn mode_load(app: &mut Ctx) {
+fn mode_play(app: &mut Ctx) {
     // Check for exit request
     if hid::Key::Back.pressed(0) {
         adi::old();
@@ -482,10 +494,9 @@ fn mode_load(app: &mut Ctx) {
 
     if app.time >= 1.0 {
         app.info = format!(
-            "Caving {} - FPS: {}\nDecoding-Playing… {}",
+            "Caving {} - FPS: {}\nDecoding-Playing…",
             env!("CARGO_PKG_VERSION"),
             app.frames,
-            true,
         );
         app.time -= 1.0;
         app.frames = 0;
