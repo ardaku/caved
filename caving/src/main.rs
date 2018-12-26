@@ -413,27 +413,64 @@ static mut GLOBAL: Global = Global {
 unsafe extern "C" fn video_write(data_y: *mut c_void, data_cb: *mut c_void, data_cr: *mut c_void,
     pitch_y: size_t, pitch_cb: size_t, pitch_cr: size_t,
 ) {
-    unsafe { GLOBAL.set = false; }
+    GLOBAL.set = false;
 
-//    if let Some(vframe/*(pixels, pitch, height)*/) = &mut GLOBAL.image {
-        let pixels = GLOBAL.pixels; //vframe.0.as_mut_ptr();
-        let pitch = GLOBAL.pitch as isize;
+    let mut pixels = GLOBAL.pixels; //vframe.0.as_mut_ptr();
+    let pitch = GLOBAL.pitch as isize;
+    let twice_pitch = pitch << 1;
+    let half_height = (GLOBAL.video_height >> 1) as isize;
+    let half_width = (GLOBAL.video_width >> 1) as isize;
+    let pitch_y = pitch_y as isize;
+    let pitch_cb = pitch_cb as isize;
+    let pitch_cr = pitch_cr as isize;
 
-        for i in 0..(GLOBAL.video_height as isize)/*.min(height)*/ {
-            let data_y = data_y.offset(i * (pitch_y as isize)) as *mut _ as *mut u8;
-            let data_cb = data_cb.offset((i >> 1) * (pitch_cb as isize)) as *mut _ as *mut u8;
-            let data_cr = data_cr.offset((i >> 1) * (pitch_cr as isize)) as *mut _ as *mut u8;
+    for i in 0..half_height {
+        let data_y = data_y.offset((i << 1) * pitch_y) as *mut _ as *mut u8;
+        let data_cb = data_cb.offset(i * pitch_cb) as *mut _ as *mut u8;
+        let data_cr = data_cr.offset(i * pitch_cr) as *mut _ as *mut u8;
+        let mut pixels_b = pixels;
 
-            for j in 0..(GLOBAL.video_width as isize) {
-                let [r, g, b, a] = ColorChannels::Srgb.from(ColorChannels::YuvNtsc, [*data_y.offset(j), *data_cb.offset(j >> 1), *data_cr.offset(j >> 1), 255]);
-                *pixels.offset(i * pitch + j * 4 + 0) = r;
-                *pixels.offset(i * pitch + j * 4 + 1) = g;
-                *pixels.offset(i * pitch + j * 4 + 2) = b;
-            }
+        for j in 0..half_width {
+            let twice_j0 = j << 1;
+            let twice_j1 = twice_j0 + 1;
+            let y0 = (*data_y.offset(twice_j0) as i32 - 16) * 298;
+            let y1 = (*data_y.offset(twice_j1) as i32 - 16) * 298;
+            let y2 = (*data_y.offset(twice_j0 + pitch_y) as i32 - 16) * 298;
+            let y3 = (*data_y.offset(twice_j1 + pitch_y) as i32 - 16) * 298;
+            let cb = (*data_cb.offset(j) as i32 - 128);
+            let cr = (*data_cr.offset(j) as i32 - 128);
+
+            let r = (409 * cr) + 128;
+            let g = (-100 * cb) + (-208 * cr) + 128;
+            let b = (516 * cb) + 128;
+
+            // Up Left
+            *pixels_b.offset(0) = ((y0 + r) >> 8).min(255).max(0) as u8;
+            *pixels_b.offset(1) = ((y0 + g) >> 8).min(255).max(0) as u8;
+            *pixels_b.offset(2) = ((y0 + b) >> 8).min(255).max(0) as u8;
+
+            // Up Right
+            *pixels_b.offset(4) = ((y1 + r) >> 8).min(255).max(0) as u8;
+            *pixels_b.offset(5) = ((y1 + g) >> 8).min(255).max(0) as u8;
+            *pixels_b.offset(6) = ((y1 + b) >> 8).min(255).max(0) as u8;
+
+            let pixels2 = pixels_b.offset(pitch);
+
+            // Down Left
+            *pixels2.offset(0) = ((y2 + r) >> 8).min(255).max(0) as u8;
+            *pixels2.offset(1) = ((y2 + g) >> 8).min(255).max(0) as u8;
+            *pixels2.offset(2) = ((y2 + b) >> 8).min(255).max(0) as u8;
+
+            // Down Right
+            *pixels2.offset(4) = ((y3 + r) >> 8).min(255).max(0) as u8;
+            *pixels2.offset(5) = ((y3 + g) >> 8).min(255).max(0) as u8;
+            *pixels2.offset(6) = ((y3 + b) >> 8).min(255).max(0) as u8;
+
+            pixels_b = pixels_b.offset(8);
         }
-//    } else {
-//        panic!("Error on video write!");
-//    }
+
+        pixels = pixels.offset(twice_pitch);
+    }
 }
 
 unsafe extern "C" fn audio_write(data: *mut c_void, size: size_t) {

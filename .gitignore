@@ -4,3 +4,5 @@ Cargo.lock
 test.mp4
 ffmpeg-4.1
 **/x86_64
+**/perf.data
+**/perf.data.old
