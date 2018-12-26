@@ -5,17 +5,18 @@ extern crate adi;
 extern crate barg;
 extern crate libc;
 extern crate miniz_oxide;
-extern crate afi;
 
 use std::env;
 use std::ffi::CString;
-use std::fs::File;
-use std::io::Write;
+// use std::fs::File;
 
-use afi::{ColorChannels,VFrame};
 use adi::{
     hid,
-    screen::{ self, Viewer, prelude::{self, *} },
+    screen::{
+        self,
+        prelude::{*},
+        Viewer,
+    },
     App,
 };
 use barg::*;
@@ -38,6 +39,7 @@ main!(
         // Texture that holds a frame.
         texture: Texture,
         // Viewer for frame
+        #[allow(unused)]
         viewer: Viewer,
     }
 );
@@ -57,29 +59,31 @@ impl App for Ctx {
             println!("CAVING > audio_channels: {}", GLOBAL.audio_channels);
             println!("CAVING > audio_samplerate: {}", GLOBAL.audio_samplerate);
             println!("CAVING > audio_sampleformat: {}", GLOBAL.audio_sampleformat);
-            println!("CAVING > video_spf: {}/{}", GLOBAL.video_spf.num, GLOBAL.video_spf.den);
+            println!(
+                "CAVING > video_spf: {}/{}",
+                GLOBAL.video_spf.num, GLOBAL.video_spf.den
+            );
         }
 
-        let texture = screen::texture(unsafe {
-            (GLOBAL.video_width as u16, GLOBAL.video_height as u16) });
+        let texture =
+            screen::texture(unsafe { (GLOBAL.video_width as u16, GLOBAL.video_height as u16) });
         let tc = screen::texcoords(&[
-	        (0.0, 0.0),
-	        (0.0, 1.0),
-	        (1.0, 1.0),
-	        (1.0, 0.0),
-
-//	        (0.0, 0.0),
-//	        (0.0, 1.0),
-//	        (1.0, 1.0),
-//	        (1.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 0.0),
+            //	        (0.0, 0.0),
+            //	        (0.0, 1.0),
+            //	        (1.0, 1.0),
+            //	        (1.0, 0.0),
         ]);
 
         let model = ModelBuilder::new()
             .vert(&[
-	            barg::Move(-1.0, -1.0),
-	            barg::Line(-1.0, 1.0),
-	            barg::Line(1.0, 1.0),
-	            barg::Line(1.0, -1.0),
+                barg::Move(-1.0, -1.0),
+                barg::Line(-1.0, 1.0),
+                barg::Line(1.0, 1.0),
+                barg::Line(1.0, -1.0),
             ])
             .face(matrix!().t(vector!(0.0, 0.0, 1.0)))
             .close();
@@ -87,9 +91,9 @@ impl App for Ctx {
         let viewer = Viewer::new(vector!(), vector!());
         let _a = viewer.add_textured(&model, matrix!(), &texture, tc, false);
 
-//        ::std::mem::forget(model);
-//        ::std::mem::forget(tc);
-//        ::std::mem::forget(viewer);
+        //        ::std::mem::forget(model);
+        //        ::std::mem::forget(tc);
+        //        ::std::mem::forget(viewer);
 
         Ctx {
             time: 0.0,
@@ -291,8 +295,8 @@ enum AVPixelFormat {
 }
 
 extern "C" {
-//    fn caving_decode_video(filename: *const c_char) -> ();
-//    fn caving_decode_audio(filename: *const c_char) -> ();
+    //    fn caving_decode_video(filename: *const c_char) -> ();
+    //    fn caving_decode_audio(filename: *const c_char) -> ();
 
     fn caving_decode_new(
         src_filename: *const c_char,
@@ -375,15 +379,10 @@ impl std::fmt::Display for AVSampleFormat {
     }
 }
 
-struct VideoBuffer {
-    current: Vec<u8>,
-    overflow: Vec<u8>,
-}
-
 struct Global {
     video_spf: AVRational,
     set: bool,
-//    image: Option<VFrame>,
+    //    image: Option<VFrame>,
     video_width: c_int,
     video_height: c_int,
     pixel_format: AVPixelFormat,
@@ -397,7 +396,7 @@ struct Global {
 static mut GLOBAL: Global = Global {
     video_spf: AVRational { num: 0, den: 0 },
     set: true,
-//    image: None,
+    //    image: None,
     video_width: 0,
     video_height: 0,
     pixel_format: AVPixelFormat::None,
@@ -406,12 +405,17 @@ static mut GLOBAL: Global = Global {
     audio_sampleformat: AVSampleFormat::None,
     pixels: std::ptr::null_mut(),
     pitch: 0,
-//    video: None,
-//    audio: None,
+    //    video: None,
+    //    audio: None,
 };
 
-unsafe extern "C" fn video_write(data_y: *mut c_void, data_cb: *mut c_void, data_cr: *mut c_void,
-    pitch_y: size_t, pitch_cb: size_t, pitch_cr: size_t,
+unsafe extern "C" fn video_write(
+    data_y: *mut c_void,
+    data_cb: *mut c_void,
+    data_cr: *mut c_void,
+    pitch_y: size_t,
+    pitch_cb: size_t,
+    pitch_cr: size_t,
 ) {
     GLOBAL.set = false;
 
@@ -437,8 +441,8 @@ unsafe extern "C" fn video_write(data_y: *mut c_void, data_cb: *mut c_void, data
             let y1 = (*data_y.offset(twice_j1) as i32 - 16) * 298;
             let y2 = (*data_y.offset(twice_j0 + pitch_y) as i32 - 16) * 298;
             let y3 = (*data_y.offset(twice_j1 + pitch_y) as i32 - 16) * 298;
-            let cb = (*data_cb.offset(j) as i32 - 128);
-            let cr = (*data_cr.offset(j) as i32 - 128);
+            let cb = *data_cb.offset(j) as i32 - 128;
+            let cr = *data_cr.offset(j) as i32 - 128;
 
             let r = (409 * cr) + 128;
             let g = (-100 * cb) + (-208 * cr) + 128;
@@ -473,8 +477,8 @@ unsafe extern "C" fn video_write(data_y: *mut c_void, data_cb: *mut c_void, data
     }
 }
 
-unsafe extern "C" fn audio_write(data: *mut c_void, size: size_t) {
-/*    if let Some(ref mut audio) = GLOBAL.audio {
+unsafe extern "C" fn audio_write(_data: *mut c_void, _size: size_t) {
+    /*    if let Some(ref mut audio) = GLOBAL.audio {
         let mut file = File::create(format!(".caving/rawz/a-{}", 0)).unwrap();
 
         file.write_all(
@@ -503,23 +507,23 @@ fn play(filename: &str) -> std::io::Result<()> {
             &mut GLOBAL.video_spf,
         );
 
-//        GLOBAL.image = Some(VFrame(vec![255; GLOBAL.video_width as usize * GLOBAL.video_height as usize * 4]));
+        //        GLOBAL.image = Some(VFrame(vec![255; GLOBAL.video_width as usize * GLOBAL.video_height as usize * 4]));
 
-//        caving_decode_video(c_filename.as_ptr());
-//        caving_decode_audio(c_filename.as_ptr());
+        //        caving_decode_video(c_filename.as_ptr());
+        //        caving_decode_audio(c_filename.as_ptr());
     }
 
-    Ok(())/*unsafe {
-        caving_decode_new(
-            c_filename.as_ptr(),
-            &mut GLOBAL.video_width,
-            &mut GLOBAL.video_height,
-            &mut GLOBAL.pixel_format,
-            &mut GLOBAL.audio_channels,
-            &mut GLOBAL.audio_samplerate,
-            &mut GLOBAL.audio_sampleformat,
-        )
-    })*/
+    Ok(()) /*unsafe {
+               caving_decode_new(
+                   c_filename.as_ptr(),
+                   &mut GLOBAL.video_width,
+                   &mut GLOBAL.video_height,
+                   &mut GLOBAL.pixel_format,
+                   &mut GLOBAL.audio_channels,
+                   &mut GLOBAL.audio_samplerate,
+                   &mut GLOBAL.audio_sampleformat,
+               )
+           })*/
 }
 
 fn mode_play(app: &mut Ctx) {
@@ -546,23 +550,23 @@ fn mode_play(app: &mut Ctx) {
     screen::texture_set(&mut app.texture, &mut |pixels, pitch| {
         unsafe {
             GLOBAL.set = true;
-            GLOBAL.pixels = pixels.as_mut_ptr(); 
-            GLOBAL.pitch = pitch; 
-            while unsafe { GLOBAL.set } {
-                if unsafe { caving_decode_run(video_write, audio_write) } {
+            GLOBAL.pixels = pixels.as_mut_ptr();
+            GLOBAL.pitch = pitch;
+            while GLOBAL.set {
+                if caving_decode_run(video_write, audio_write) {
                     stopping = true;
                 }
             }
         }
 
-//        let image = unsafe { GLOBAL.image.as_ref().unwrap() };
+        //        let image = unsafe { GLOBAL.image.as_ref().unwrap() };
 
-//        unsafe {
-//            std::ptr::copy(image.0.as_ptr(), pixels.as_mut_ptr(), image.0.len());
-//        }
-    });/* unsafe {
-        (GLOBAL.video_width as u16, GLOBAL.video_height as u16)
-    }, unsafe { GLOBAL.image.as_ref().unwrap() });*/
+        //        unsafe {
+        //            std::ptr::copy(image.0.as_ptr(), pixels.as_mut_ptr(), image.0.len());
+        //        }
+    }); /* unsafe {
+            (GLOBAL.video_width as u16, GLOBAL.video_height as u16)
+        }, unsafe { GLOBAL.image.as_ref().unwrap() });*/
 
     if stopping {
         app.mode = mode_stop;
