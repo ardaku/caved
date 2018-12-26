@@ -13,6 +13,7 @@ libc = "0.2"
 barg = "0.0.3"
 miniz_oxide = "0.2.0"
 siyo = { path = "../../siyo" }
+afi = { path = "../../afi" }
 
 [dependencies.adi]
 version = "0.13.0-pre2"

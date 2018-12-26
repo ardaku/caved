@@ -5,15 +5,17 @@ extern crate adi;
 extern crate barg;
 extern crate libc;
 extern crate miniz_oxide;
+extern crate afi;
 
 use std::env;
 use std::ffi::CString;
 use std::fs::File;
 use std::io::Write;
 
+use afi::{ColorChannels,VFrame};
 use adi::{
     hid,
-    screen::{ self, Viewer, ColorChannels, prelude::{self, *} },
+    screen::{ self, Viewer, prelude::{self, *} },
     App,
 };
 use barg::*;
@@ -59,8 +61,7 @@ impl App for Ctx {
         }
 
         let texture = screen::texture(unsafe {
-            (GLOBAL.video_width as u16, GLOBAL.video_height as u16) }, unsafe {&VFrame(vec![255; GLOBAL.video_width as usize * GLOBAL.video_height as usize * 4]) }
-        );
+            (GLOBAL.video_width as u16, GLOBAL.video_height as u16) });
         let tc = screen::texcoords(&[
 	        (0.0, 0.0),
 	        (0.0, 1.0),
@@ -75,12 +76,12 @@ impl App for Ctx {
 
         let model = ModelBuilder::new()
             .vert(&[
-	            prelude::Move(-1.0, -1.0, 1.0),
-	            prelude::Line(-1.0, 1.0, 1.0),
-	            prelude::Line(1.0, 1.0, 1.0),
-	            prelude::Line(1.0, -1.0, 1.0),
+	            barg::Move(-1.0, -1.0),
+	            barg::Line(-1.0, 1.0),
+	            barg::Line(1.0, 1.0),
+	            barg::Line(1.0, -1.0),
             ])
-            .face(matrix!())
+            .face(matrix!().t(vector!(0.0, 0.0, 1.0)))
             .close();
 
         let viewer = Viewer::new(vector!(), vector!());
@@ -382,27 +383,29 @@ struct VideoBuffer {
 struct Global {
     video_spf: AVRational,
     set: bool,
-    image: Option<VFrame>,
+//    image: Option<VFrame>,
     video_width: c_int,
     video_height: c_int,
     pixel_format: AVPixelFormat,
     audio_channels: c_int,
     audio_samplerate: c_int,
     audio_sampleformat: AVSampleFormat,
-//    video: Option<VideoBuffer>,
-//    audio: Option<Vec<u8>>,
+    pixels: *mut u8,
+    pitch: usize,
 }
 
 static mut GLOBAL: Global = Global {
     video_spf: AVRational { num: 0, den: 0 },
     set: true,
-    image: None,
+//    image: None,
     video_width: 0,
     video_height: 0,
     pixel_format: AVPixelFormat::None,
     audio_channels: 0,
     audio_samplerate: 0,
     audio_sampleformat: AVSampleFormat::None,
+    pixels: std::ptr::null_mut(),
+    pitch: 0,
 //    video: None,
 //    audio: None,
 };
@@ -412,9 +415,9 @@ unsafe extern "C" fn video_write(data_y: *mut c_void, data_cb: *mut c_void, data
 ) {
     unsafe { GLOBAL.set = false; }
 
-    if let Some(vframe/*(pixels, pitch, height)*/) = &mut GLOBAL.image {
-        let pixels = vframe.0.as_mut_ptr();
-        let pitch = GLOBAL.video_width as isize * 4;
+//    if let Some(vframe/*(pixels, pitch, height)*/) = &mut GLOBAL.image {
+        let pixels = GLOBAL.pixels; //vframe.0.as_mut_ptr();
+        let pitch = GLOBAL.pitch as isize;
 
         for i in 0..(GLOBAL.video_height as isize)/*.min(height)*/ {
             let data_y = data_y.offset(i * (pitch_y as isize)) as *mut _ as *mut u8;
@@ -428,9 +431,9 @@ unsafe extern "C" fn video_write(data_y: *mut c_void, data_cb: *mut c_void, data
                 *pixels.offset(i * pitch + j * 4 + 2) = b;
             }
         }
-    } else {
-        panic!("Error on video write!");
-    }
+//    } else {
+//        panic!("Error on video write!");
+//    }
 }
 
 unsafe extern "C" fn audio_write(data: *mut c_void, size: size_t) {
@@ -463,7 +466,7 @@ fn play(filename: &str) -> std::io::Result<()> {
             &mut GLOBAL.video_spf,
         );
 
-        GLOBAL.image = Some(VFrame(vec![255; GLOBAL.video_width as usize * GLOBAL.video_height as usize * 4]));
+//        GLOBAL.image = Some(VFrame(vec![255; GLOBAL.video_width as usize * GLOBAL.video_height as usize * 4]));
 
 //        caving_decode_video(c_filename.as_ptr());
 //        caving_decode_audio(c_filename.as_ptr());
@@ -502,29 +505,45 @@ fn mode_play(app: &mut Ctx) {
         app.frames = 0;
     }
 
-    unsafe { GLOBAL.set = true; }
-    while unsafe { GLOBAL.set } {
-        if unsafe { caving_decode_run(video_write, audio_write) } {
-            app.mode = mode_stop;
+    let mut stopping = false;
+    screen::texture_set(&mut app.texture, &mut |pixels, pitch| {
+        unsafe {
+            GLOBAL.set = true;
+            GLOBAL.pixels = pixels.as_mut_ptr(); 
+            GLOBAL.pitch = pitch; 
+            while unsafe { GLOBAL.set } {
+                if unsafe { caving_decode_run(video_write, audio_write) } {
+                    stopping = true;
+                }
+            }
         }
-    }
-    screen::texture_set(&mut app.texture, unsafe {
+
+//        let image = unsafe { GLOBAL.image.as_ref().unwrap() };
+
+//        unsafe {
+//            std::ptr::copy(image.0.as_ptr(), pixels.as_mut_ptr(), image.0.len());
+//        }
+    });/* unsafe {
         (GLOBAL.video_width as u16, GLOBAL.video_height as u16)
-    }, unsafe { GLOBAL.image.as_ref().unwrap() });
+    }, unsafe { GLOBAL.image.as_ref().unwrap() });*/
+
+    if stopping {
+        app.mode = mode_stop;
+    }
 
     // Render
-    screen::draw(&mut |pixel_buffer| {
+    screen::draw(&mut |pixels, pitch| {
         let (_w, h) = screen::wh();
-        let mut image = Image::new(Size((screen::pitch() / 4) as u16, h));
+        let mut image = Image::new(Size((pitch / 4) as u16, h));
 
-        image.clear_ptr(pixel_buffer);
+        image.clear_ptr(pixels.as_mut_ptr());
 
         image.text_ptr(
             [255, 255, 255, 255], // White
             (5.0, 5.0, 36.0),     // Pos. & Size
             &app.font,            // Font
             &app.info,            // String
-            pixel_buffer,
+            pixels.as_mut_ptr(),
         );
     });
 }
@@ -551,17 +570,17 @@ fn mode_stop(app: &mut Ctx) {
     }
 
     // Render
-    screen::draw(&mut |pixel_buffer| {
+    screen::draw(&mut |pixels, pitch| {
         let (_w, h) = screen::wh();
-        let mut image = Image::new(Size((screen::pitch() / 4) as u16, h));
+        let mut image = Image::new(Size((pitch / 4) as u16, h));
 
-        image.clear_ptr(pixel_buffer);
+        image.clear_ptr(pixels.as_mut_ptr());
         image.text_ptr(
             [255, 255, 255, 255], // White
             (5.0, 5.0, 36.0),     // Pos. & Size
             &app.font,            // Font
             &app.info,            // String
-            pixel_buffer,
+            pixels.as_mut_ptr(),
         );
     });
 }
