@@ -1,32 +1,41 @@
-[![Plop Grizzly](https://plopgrizzly.com/images/logo-bar.png)](https://plopgrizzly.com)
+# Caved
+Caved stands for "Codecs for Audio and Video Encoding and Decoding".  This is an
+oxidized re-implementation of libav (ffmpeg) and SDL_Image.  Currently
+statically links to libav for most formats.
 
-# [Codecs for Audio and Video Encoding and Decoding](https://crates.io/crates/caved)
-Codecs for Audio and Video, static bindings to libav (ffmpeg).  Some re-implemented in Rust.
-Goal is for all Rust.
+## Goals
+- APIs to encode/decode all audio/video formats with widespread usage.
+- Fast
+- No Unsafe
+- Pure Rust
+- High Level and Low Level APIs
+- pix crate-based APIs for graphics
+- TBD crate-based APIs for audio
 
-`libav` is a great tool for doing multimedia encoding and decoding - but wouldn't it be
-even better if it was written in Rust, dual licensed under MIT and Boost version 1?
-Here it is - well, at least the beginnings of it.
+## Roadmap 
+### 0.1.0
+- FFI into libav
+- Static linking libav (using `cc` crate).
 
-## Features
-`caved`'s current features:
-* Nothing yet
+### 1.0.0 (Future Features)
+- Written all in Rust.
 
-## Getting started
-```rust
-extern crate caved;
-use caved::*;
-```
+## Getting Started
+Examples can be found in the [Documentation](https://docs.rs/caved) and it's
+worth checking out [Caving](https://github.com/libcala/caving).
 
-## [Contributing](http://plopgrizzly.com/contributing/en#contributing)
+## License
+The `ogg_opus` crate is distributed under any of
 
-## Roadmap to 0.1 (Future Features)
-* FFI into libav
-* Static linking libav (using `cc` crate).
+- The terms of the
+  [MIT License](https://github.com/libcala/ogg_opus/blob/master/LICENSE-MIT)
+- The terms of the
+  [Apache License (Version 2.0)](https://github.com/libcala/ogg_opus/blob/master/LICENSE-APACHE)
+- The terms of the
+  [Zlib License](https://github.com/libcala/ogg_opus/blob/master/LICENSE-ZLIB)
 
-## Roadmap to 1.0 (Future Features)
-* Written all in Rust.
+at your option.
 
-## Change Log
-### 0.0.0
-* Initial release
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+licensed as described above, without any additional terms or conditions.
